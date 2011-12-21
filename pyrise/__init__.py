@@ -164,7 +164,7 @@ class HighriseObject(object):
                         if item.tag == 'party':
                             class_string = item.find('type').text
                         else:
-                            class_string = Highrise.key_to_class(item.tag)
+                            class_string = Highrise.key_to_class(item.tag.replace('_', '-'))
                         klass = getattr(sys.modules[__name__], class_string)
                         items.append(klass.from_xml(item, parent=self))
                     self.__dict__[child.tag.replace('-', '_')] = items
@@ -743,7 +743,7 @@ class WebAddress(ContactDetail):
 
 
 
-class CustomData(HighriseObject):
+class SubjectData(HighriseObject):
     """An object representing an email address"""
 
     fields = {
@@ -754,7 +754,7 @@ class CustomData(HighriseObject):
     
     def save_xml(self, *args, **kwargs):
         kwargs['base_element'] = 'subject_data'
-        return super(CustomData, self).save_xml(*args, **kwargs)
+        return super(SubjectData, self).save_xml(*args, **kwargs)
 
 
 
