@@ -164,7 +164,7 @@ class HighriseObject(object):
                         if item.tag == 'party':
                             class_string = item.find('type').text
                         else:
-                            class_string = Highrise.key_to_class(item.tag)
+                            class_string = Highrise.key_to_class(item.tag.replace('_', '-'))
                         klass = getattr(sys.modules[__name__], class_string)
                         items.append(klass.from_xml(item, parent=self))
                     self.__dict__[child.tag.replace('-', '_')] = items
@@ -231,6 +231,8 @@ class HighriseObject(object):
             kwargs['base_element'] = Highrise.class_to_key(self.__class__.__name__)
         xml = ElementTree.Element(kwargs['base_element'])
         
+        extra_attrs = kwargs.get('extra_attrs', {})
+        
         # if the id should be included and it is not None, add it first
         if include_id and 'id' in self.__dict__ and self.id != None:
             xml.insert(0, ElementTree.Element(tag='id', text=str(self.id)))
@@ -257,8 +259,11 @@ class HighriseObject(object):
                 xml.insert(0, value.save_xml(include_id=True))
                 continue
             
+            field_name = field.replace('_', '-') if not settings.force_key else settings.force_key
+            extra_attrs = extra_attrs if not settings.extra_attrs else settings.extra_attrs
+            
             # insert the remaining single-attribute elements
-            e = ElementTree.Element(field.replace('_', '-'))
+            e = ElementTree.Element(field_name, **extra_attrs)
             if isinstance(value, int):
                 e.text = str(value)
             elif isinstance(value, list):
@@ -280,9 +285,11 @@ class HighriseField(object):
     """An object to represent the settings for an object attribute
     Note that a lot more detail could go into how this works."""
 
-    def __init__(self, type='uneditable', options=None):
+    def __init__(self, type='uneditable', options=None, **kwargs):
         self.type = type
         self.options = options
+        self.force_key = kwargs.pop('force_key', None)
+        self.extra_attrs = kwargs.pop('extra_attrs', None)
     
     @property
     def default(self):
@@ -735,6 +742,22 @@ class WebAddress(ContactDetail):
     }
 
 
+
+class SubjectData(HighriseObject):
+    """An object representing an email address"""
+
+    fields = {
+        'id': HighriseField(type='id'),
+        'subject_field_id': HighriseField(type=int, force_key='subject_field_id', extra_attrs={'type': 'integer'}),
+        'value': HighriseField(type=str)
+    }
+    
+    def save_xml(self, *args, **kwargs):
+        kwargs['base_element'] = 'subject_data'
+        return super(SubjectData, self).save_xml(*args, **kwargs)
+
+
+
 class Party(HighriseObject):
     """An object representing a Highrise person or company."""
 
@@ -751,7 +774,7 @@ class Party(HighriseObject):
             'contact_data': HighriseField(type=ContactData),
             'author_id': HighriseField(),
             'created_at': HighriseField(),
-            'updated_at': HighriseField(),
+            'updated_at': HighriseField()
         }
         cls.fields.update(extended_fields)
         
@@ -929,6 +952,7 @@ class Person(Party):
             'title': HighriseField(type=str),
             'company_id': HighriseField(type=int),
             'company_name': HighriseField(),
+            'subject_datas': HighriseField(type=list, force_key='subject_datas', extra_attrs={'type': 'array'}),
         }
         return Party.__new__(cls, extended_fields, **kwargs)
 
