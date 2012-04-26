@@ -233,7 +233,8 @@ class HighriseObject(object):
         
         # if the id should be included and it is not None, add it first
         if include_id and 'id' in self.__dict__ and self.id != None:
-            xml.insert(0, ElementTree.Element(tag='id', text=str(self.id)))
+            id_element = ElementTree.SubElement(xml, tag='id', attrib={'type': 'integer'})
+            id_element.text = str(self.id)
 
         # now iterate over the editable attributes
         for field, settings in self.fields.iteritems():
