@@ -794,15 +794,18 @@ class Party(HighriseObject):
         # this against the Person object directly
         if ('company_id' in kwargs or 'title' in kwargs):
             return Person._filter(**kwargs)
+
+        # Functor to ensure that unicode is encoded to UTF8 before being used as a URL parameter
+        utf8 = lambda s: s.encode( "utf8" ) if isinstance( s, unicode ) else s
     
         # get the path for filter methods that only take a single argument
         if 'term' in kwargs:
-            path = '/%s/search.xml?term=%s' % (cls.plural, urllib.quote(kwargs['term']))
+            path = '/%s/search.xml?term=%s' % (cls.plural, urllib.quote(utf8(kwargs['term'])))
             if len(kwargs) > 1:
                 raise KeyError, '"term" can not be used with any other keyward arguments'
 
         elif 'tag_id' in kwargs:
-            path = '/%s.xml?tag_id=%s' % (cls.plural, urllib.quote(kwargs['tag_id']))
+            path = '/%s.xml?tag_id=%s' % (cls.plural, urllib.quote(utf8(kwargs['tag_id'])))
             if len(kwargs) > 1:
                 raise KeyError, '"tag_id" can not be used with any other keyward arguments'
 
@@ -815,7 +818,7 @@ class Party(HighriseObject):
         else:
             path = '/%s/search.xml?' % cls.plural
             for key in kwargs:
-                path += 'criteria[%s]=%s&' % (key, urllib.quote(kwargs[key]))
+                path += 'criteria[%s]=%s&' % (key, urllib.quote(utf8(kwargs[key])))
             path = path[:-1]
 
         # return the list of people from Highrise
