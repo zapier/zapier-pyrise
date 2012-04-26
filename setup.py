@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 #from distutils.core import setup
 from setuptools import setup, find_packages
-from pyrise import __version__
+
+execfile('pyrise/version.py')
 
 setup(name="pyrise",
       version=__version__,
