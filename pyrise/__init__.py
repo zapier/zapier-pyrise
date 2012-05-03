@@ -760,6 +760,9 @@ class SubjectData(HighriseObject):
 class Party(HighriseObject):
     """An object representing a Highrise person or company."""
 
+    singular = 'party'
+    plural = 'parties'
+
     def __new__(cls, extended_fields={}, **kwargs):
         """Set object attributes for subclasses of Party (companies and people)"""
 
@@ -797,7 +800,12 @@ class Party(HighriseObject):
 
         # Functor to ensure that unicode is encoded to UTF8 before being used as a URL parameter
         utf8 = lambda s: s.encode( "utf8" ) if isinstance( s, unicode ) else s
-    
+
+        paging = ''
+        if 'n' in kwargs:
+            n = kwargs.pop('n')
+            paging = '&n=%d' % n
+
         # get the path for filter methods that only take a single argument
         if 'term' in kwargs:
             path = '/%s/search.xml?term=%s' % (cls.plural, urllib.quote(utf8(kwargs['term'])))
@@ -810,6 +818,7 @@ class Party(HighriseObject):
                 raise KeyError, '"tag_id" can not be used with any other keyward arguments'
 
         elif 'since' in kwargs:
+            paging = '' # since does not page results
             path = '/%s.xml?since=%s' % (cls.plural, datetime.strftime(Highrise.from_utc(kwargs['since']), '%Y%m%d%H%M%S'))
             if len(kwargs) > 1:
                 raise KeyError, '"since" can not be used with any other keyward arguments'
@@ -822,7 +831,7 @@ class Party(HighriseObject):
             path = path[:-1]
 
         # return the list of people from Highrise
-        return cls._list(path, cls.singular)
+        return cls._list(path+paging, cls.singular)
 
     @classmethod
     def get(cls, id):
