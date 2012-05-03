@@ -130,6 +130,8 @@ class HighriseObject(object):
         """Create a new object from XML data"""
         
         # instiantiate the object
+        if cls == Party:
+            cls = getattr(sys.modules[__name__], xml.get('type'))
         self = cls()
         
         for child in xml.getchildren():
