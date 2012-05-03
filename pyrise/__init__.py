@@ -787,7 +787,7 @@ class Party(HighriseObject):
     def all(cls):
         """Get all parties"""
 
-        return cls._list('%s.xml' % cls.plural, 'person')
+        return cls._list('%s.xml' % cls.plural, cls.singular)
 
     @classmethod
     def filter(cls, **kwargs):
