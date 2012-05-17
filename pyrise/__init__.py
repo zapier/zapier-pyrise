@@ -776,6 +776,7 @@ class Party(HighriseObject):
             'owner_id': HighriseField(type=int),
             'group_id': HighriseField(type=int),
             'contact_data': HighriseField(type=ContactData),
+            'avatar_url': HighriseField(type=str),
             'author_id': HighriseField(),
             'created_at': HighriseField(),
             'updated_at': HighriseField()
