@@ -310,6 +310,20 @@ class HighriseField(object):
         return self.type not in ('id', 'uneditable')
         
 
+class SubjectField(HighriseObject):
+    """An object representing a Highise custom field."""
+
+    fields = {
+        'id': HighriseField(type='id'),
+        'label': HighriseField(),
+    }
+
+    @classmethod
+    def all(cls):
+        """Get all custom fields"""
+
+        return cls._list('subject_fields.xml', 'subject-field')
+
 class Tag(HighriseObject):
     """An object representing a Highrise tag."""
 
@@ -750,6 +764,7 @@ class SubjectData(HighriseObject):
     fields = {
         'id': HighriseField(type='id'),
         'subject_field_id': HighriseField(type=int, force_key='subject_field_id', extra_attrs={'type': 'integer'}),
+        'subject_field_label': HighriseField(type=str),
         'value': HighriseField(type=str)
     }
     
