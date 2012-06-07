@@ -8,7 +8,7 @@ from xml.etree import ElementTree
 class Highrise:
     """Class designed to handle all interactions with the Highrise API."""
     
-    _http = httplib2.Http()
+    _http = httplib2.Http(disable_ssl_certificate_validation=True)
     _server = None
     _tzoffset = 0
 
