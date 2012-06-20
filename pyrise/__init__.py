@@ -261,10 +261,10 @@ class HighriseObject(object):
                 continue
             
             field_name = field.replace('_', '-') if not settings.force_key else settings.force_key
-            extra_attrs = extra_attrs if not settings.extra_attrs else settings.extra_attrs
+            extra_attrs_copy = extra_attrs if not settings.extra_attrs else settings.extra_attrs
             
             # insert the remaining single-attribute elements
-            e = ElementTree.Element(field_name, **extra_attrs)
+            e = ElementTree.Element(field_name, **extra_attrs_copy)
             if isinstance(value, int):
                 e.text = str(value)
             elif isinstance(value, list):
