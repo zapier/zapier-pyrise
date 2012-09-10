@@ -843,10 +843,14 @@ class Party(HighriseObject):
 
         # if we didn't get a single-argument kwarg, process using the search criteria method
         else:
-            path = '/%s/search.xml?' % cls.plural
-            for key in kwargs:
-                path += 'criteria[%s]=%s&' % (key, urllib.quote(utf8(kwargs[key])))
-            path = path[:-1]
+            if kwargs.keys():
+                path = '/%s/search.xml?' % cls.plural
+                for key in kwargs:
+                    path += 'criteria[%s]=%s&' % (key, urllib.quote(utf8(kwargs[key])))
+                path = path[:-1]
+            else:
+                # allow filtering by 'n' alone without using search.xml
+                path = '/%s.xml?' % cls.plural
 
         # return the list of people from Highrise
         return cls._list(path+paging, cls.singular)
