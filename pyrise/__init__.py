@@ -350,7 +350,7 @@ class Tag(HighriseObject):
         
         xml = ElementTree.Element(tag='name')
         xml.text = name
-        xml_string = ElementTree.tostring(xml)
+        xml_string = ElementTree.tostring(xml, encoding=None)
         
         response = Highrise.request('%s/%s/tags.xml' % (subject, subject_id), method='POST', xml=xml_string)
         return cls.from_xml(response)
@@ -428,7 +428,7 @@ class Message(HighriseObject):
 
         # get the XML for the request
         xml = self.save_xml()
-        xml_string = ElementTree.tostring(xml)
+        xml_string = ElementTree.tostring(xml, encoding=None)
 
         # if this was an initial save, update the object with the returned data
         if self.id == None:
@@ -541,7 +541,7 @@ class Deal(HighriseObject):
 
         # get the XML for the request
         xml = self.save_xml()
-        xml_string = ElementTree.tostring(xml)
+        xml_string = ElementTree.tostring(xml, encoding=None)
 
         # if this was an initial save, update the object with the returned data
         if self.id == None:
@@ -565,7 +565,7 @@ class Deal(HighriseObject):
         xml_name = ElementTree.Element(tag='name')
         xml_name.text = status
         xml.insert(0, xml_name)
-        xml_string = ElementTree.tostring(xml)
+        xml_string = ElementTree.tostring(xml, encoding=None)
         
         # submit the PUT request
         response = Highrise.request('/deals/%s/status.xml' % self.id, method='PUT', xml=xml_string)
@@ -642,7 +642,7 @@ class Task(HighriseObject):
 
         # get the XML for the request
         xml = self.save_xml()
-        xml_string = ElementTree.tostring(xml)
+        xml_string = ElementTree.tostring(xml, encoding=None)
 
         # if this was an initial save, update the object with the returned data
         if self.id == None:
@@ -950,7 +950,7 @@ class Party(HighriseObject):
 
         # get the XML for the request
         xml = self.save_xml()
-        xml_string = ElementTree.tostring(xml)
+        xml_string = ElementTree.tostring(xml, encoding=None)
 
         # if this was an initial save, update the object with the returned data
         if self.id == None:
