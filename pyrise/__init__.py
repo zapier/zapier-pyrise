@@ -951,7 +951,7 @@ class Person(Party):
             'last_name': HighriseField(type=str),
             'title': HighriseField(type=str),
             'company_id': HighriseField(type=int),
-            'company_name': HighriseField(),
+            'company_name': HighriseField(type=str),
             'subject_datas': HighriseField(type=list, force_key='subject_datas', extra_attrs={'type': 'array'}),
         }
         return Party.__new__(cls, extended_fields, **kwargs)
