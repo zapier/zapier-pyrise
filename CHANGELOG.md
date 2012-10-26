@@ -1,3 +1,7 @@
+0.4.5
+---
+* Version bump to account for a few patches from the community
+
 0.4.4
 ---
 * Lots of misc bug fixes and improvements.
