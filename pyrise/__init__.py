@@ -916,6 +916,19 @@ class Party(HighriseObject):
         return Note.filter(**kwargs)
 
     @property
+    def tasks(self):
+        """Get the tasks associated with this party"""
+
+        # sanity check: has this person been saved to Highrise yet?
+        if self.id == None:
+            raise ElevatorError, 'You have to save the person before you can load their tasks'
+
+        # get the notes
+        kwargs = {}
+        kwargs[self.singular] = self.id
+        return Task.filter(**kwargs)
+
+    @property
     def emails(self):
         """Get the emails associated with this party"""
 
