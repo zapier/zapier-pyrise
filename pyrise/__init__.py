@@ -526,6 +526,17 @@ class Deal(HighriseObject):
         return Note.filter(deal=self.id)
 
     @property
+    def tasks(self):
+        """Get the tasks associated with this deal"""
+
+        # sanity check: has this deal been saved to Highrise yet?
+        if self.id == None:
+            raise ElevatorError, 'You have to save the deal before you can load its tasks'
+
+        # get the notes
+        return Task.filter(deal=self.id)
+
+    @property
     def emails(self):
         """Get the emails associated with this deal"""
 
