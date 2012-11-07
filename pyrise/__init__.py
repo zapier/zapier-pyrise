@@ -602,6 +602,9 @@ class Deal(HighriseObject):
 class Task(HighriseObject):
     """An object representing a Highrise task."""
 
+    plural = 'tasks'
+    singular = 'task'
+
     fields = {
         'id': HighriseField(type='id'),
         'recording_id': HighriseField(type=int),
@@ -663,6 +666,28 @@ class Task(HighriseObject):
 
         return Highrise.request('/tasks/%s.xml' % self.id, method='DELETE')
         
+    @classmethod
+    def filter(cls, **kwargs):
+        """Get a list of tasks based by subject"""
+        
+        # map kwarg to URL slug for request
+        kwarg_to_path = {
+            'person': 'people',
+            'company': 'companies',
+            'kase': 'kases',
+            'deal': 'deals',
+        }
+        
+        # find the first kwarg that we understand and use it to generate the request path
+        for key, value in kwargs.iteritems():
+            if key in kwarg_to_path:
+                path = '/%s/%s/%s.xml' % (kwarg_to_path[key], value, cls.plural)
+                break
+        else:
+            raise KeyError, 'filter method must have person, company, kase, or deal as an kwarg'
+                
+        # return the list of messages from Highrise
+        return cls._list(path, cls.singular)
 
 class ContactData(HighriseObject):
     """An object representing contact data for a
