@@ -1072,6 +1072,61 @@ class Company(Party):
         return Party.__new__(cls, extended_fields, **kwargs)
 
 
+class User(HighriseObject):
+    """
+    A Highrise account user (NB this is *not* a Person).
+
+    A user is someone who has a Highrise account, and is not the same
+    thing as a Person (who is a Highrise contact). Users are the people who
+    use the system, rather than those stored within it.
+
+    Having a User class is useful as it allows you to access real names for
+    people who have edited / added items to Highrise. For example, if you
+    want to know who wrote a Note, then the Note API will return the author_id
+    which can be used to look up the User.
+
+    e.g.
+    >>> person = pyrise.Person.get(123)
+    >>> note = person.notes[0]
+    >>> author = pyrise.User.get(note.author_id)
+    >>> print author.name + ' wrote the note.'
+    Bob wrote the note.
+
+    API docs available at https://github.com/37signals/highrise-api/blob/master/sections/data_reference.md#user
+
+    NB this is currently READ-ONLY, and has only a single `get(id)` method.
+    """
+
+    singular = 'user'
+    plural = 'users'
+
+    def __new__(cls, extended_fields={}, **kwargs):
+        # set the base fields dictionary and extend it with any additional fields
+        cls.fields = {
+            'id': HighriseField(type='id'),
+            'name': HighriseField(type=str),
+            'email_address': HighriseField(type=str),
+            'created_at': HighriseField(),
+            'updated_at': HighriseField(),
+            'admin': HighriseField(type=bool)
+        }
+        cls.fields.update(extended_fields)
+
+        # send back the object reference
+        return HighriseObject.__new__(cls, **kwargs)
+
+    @classmethod
+    def get(cls, id):
+        """Get a single user by id."""
+
+        # retrieve the person from Highrise
+        xml = Highrise.request('/%s/%s.xml' % (cls.plural, id))
+
+        # return a person object
+        for obj_xml in xml.getiterator(tag=cls.singular):
+            return cls.from_xml(obj_xml)
+
+
 class ElevatorError(Exception):
     pass
 
