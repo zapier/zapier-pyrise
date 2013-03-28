@@ -808,6 +808,64 @@ class SubjectData(HighriseObject):
         kwargs['base_element'] = 'subject_data'
         return super(SubjectData, self).save_xml(*args, **kwargs)
 
+class Case(HighriseObject):
+    """An object representing a Highrise Case."""
+
+    fields = {
+        'id': HighriseField(type='id'),
+        'author_id': HighriseField(type=int),
+        'closed_at': HighriseField(type=datetime),
+        'created_at': HighriseField(type=datetime),
+        'updated_at': HighriseField(type=datetime),
+        'name': HighriseField(type=str),
+        'visible-to': HighriseField(type=str),
+        'group_id': HighriseField(type=int),
+        'owner_id': HighriseField(type=int),
+        'parties': HighriseField(type=list)
+    }
+
+    @classmethod
+    def all(cls):
+        """Get all cases"""
+
+        return cls._list('kases/open.xml', 'kase')
+
+    @classmethod
+    def get(cls, id):
+        """Get a single case"""
+
+        # retrieve the case from Highrise
+        xml = Highrise.request('/kases/%s.xml' % id)
+
+        # return a case object
+        for case_xml in xml.getiterator(tag='kase'):
+            return Case.from_xml(case_xml)
+
+    def save(self):
+        """Save a case to Highrise."""
+
+        # get the XML for the request
+        xml = self.save_xml()
+        xml_string = ElementTree.tostring(xml, encoding=None)
+
+        # if this was an initial save, update the object with the returned data
+        if self.id == None:
+            response = Highrise.request('/kases.xml', method='POST', xml=xml_string)
+            new = Case.from_xml(response)
+
+        # if this was a PUT request, we need to re-request the object
+        # so we can get any new ID values set at creation
+        else:
+            response = Highrise.request('/kases/%s.xml' % self.id, method='PUT', xml=xml_string)
+            new = Case.get(self.id)
+
+        # update the values of self to align with what came back from Highrise
+        self.__dict__ = new.__dict__
+    
+    def delete(self):
+        """Delete a task from Highrise."""
+
+        return Highrise.request('/kases/%s.xml' % self.id, method='DELETE')
 
 
 class Party(HighriseObject):
