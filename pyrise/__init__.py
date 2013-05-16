@@ -7,6 +7,27 @@ from xml.etree import ElementTree
 
 __version__ = '0.4.4'
 
+
+class _Request(object):
+    pass
+
+class _Response(object):
+    @classmethod
+    def create(cls, **kwargs):
+        response = _Response()
+        response.request = _Request()
+
+        response.request.method  = kwargs['method']
+        response.request.url     = kwargs['url']
+        response.request.headers = kwargs['request_headers']
+        response.request.data    = kwargs['request_content']
+        response.request.params  = kwargs['params']
+        response.status_code     = kwargs['status_code']
+        response.content         = kwargs['response_content']
+        response.headers         = kwargs['response_headers']
+
+        return response
+
 class Highrise:
     """Class designed to handle all interactions with the Highrise API."""
     
@@ -52,7 +73,7 @@ class Highrise:
         return date - timedelta(hours=cls._tzoffset)
     
     @classmethod
-    def request(cls, path, method='GET', xml=None):
+    def request(cls, path, method='GET', xml=None, hooks={}):
         """Process an arbitrary request to Highrise.
         
         Ordinarily, you shouldn't have to call this method directly,
@@ -61,12 +82,28 @@ class Highrise:
         # build the base request URL
         url = '%s/%s' % (cls._server, path.strip('/'))
         
+        request_headers = {}
         # create the curl command
         if method in ('GET', 'DELETE'):
             request, content = cls._http.request(url, method=method)
         else:
-            request, content = cls._http.request(url, method=method, body=xml, headers={'content-type': 'application/xml'})
+            request_headers = {'content-type': 'application/xml'}
+            request, content = cls._http.request(url, method=method, body=xml, headers=request_headers)
         
+        response = _Response.create(
+            method=method,
+            url=url,
+            request_headers=request_headers,
+            request_content=xml or '',
+            params = {},
+            status_code=request['status'],
+            response_content=content,
+            response_headers=request
+
+        )
+        if 'response' in hooks:
+            hooks['response'](response)
+
         # raise appropriate exceptions if there is an error
         status = int(request['status'])
         if status >= 400:
@@ -408,7 +445,7 @@ class Message(HighriseObject):
         # return the list of messages from Highrise
         return cls._list(path, cls.singular)
 
-    def save(self):
+    def save(self, hooks={}):
         """Save a message to Highrise."""
 
         # get the XML for the request
@@ -417,13 +454,13 @@ class Message(HighriseObject):
 
         # if this was an initial save, update the object with the returned data
         if self.id == None:
-            response = Highrise.request('/%s.xml' % self.plural, method='POST', xml=xml_string)
+            response = Highrise.request('/%s.xml' % self.plural, method='POST', xml=xml_string, hooks=hooks)
             new = self.from_xml(response)
 
         # if this was a PUT request, we need to re-request the object
         # so we can get any new ID values set at ceation
         else:
-            response = Highrise.request('/%s/%s.xml' % (self.plural, self.id), method='PUT', xml=xml_string)
+            response = Highrise.request('/%s/%s.xml' % (self.plural, self.id), method='PUT', xml=xml_string, hooks=hooks)
             new = cls.get(self.id)
 
         # update the values of self to align with what came back from Highrise
@@ -521,7 +558,7 @@ class Deal(HighriseObject):
         # get the emails
         return Email.filter(deal=self.id)
 
-    def save(self):
+    def save(self, hooks={}):
         """Save a deal to Highrise."""
 
         # get the XML for the request
@@ -530,13 +567,13 @@ class Deal(HighriseObject):
 
         # if this was an initial save, update the object with the returned data
         if self.id == None:
-            response = Highrise.request('/deals.xml', method='POST', xml=xml_string)
+            response = Highrise.request('/deals.xml', method='POST', xml=xml_string, hooks=hooks)
             new = Deal.from_xml(response)
 
         # if this was a PUT request, we need to re-request the object
         # so we can get any new ID values set at ceation
         else:
-            response = Highrise.request('/deals/%s.xml' % self.id, method='PUT', xml=xml_string)
+            response = Highrise.request('/deals/%s.xml' % self.id, method='PUT', xml=xml_string, hooks=hooks)
             new = Deal.get(self.id)
 
         # update the values of self to align with what came back from Highrise
@@ -622,7 +659,7 @@ class Task(HighriseObject):
         for task_xml in xml.getiterator(tag='task'):
             return Task.from_xml(task_xml)
 
-    def save(self):
+    def save(self, hooks={}):
         """Save a task to Highrise."""
 
         # get the XML for the request
@@ -631,13 +668,13 @@ class Task(HighriseObject):
 
         # if this was an initial save, update the object with the returned data
         if self.id == None:
-            response = Highrise.request('/tasks.xml', method='POST', xml=xml_string)
+            response = Highrise.request('/tasks.xml', method='POST', xml=xml_string, hooks=hooks)
             new = Task.from_xml(response)
 
         # if this was a PUT request, we need to re-request the object
         # so we can get any new ID values set at ceation
         else:
-            response = Highrise.request('/tasks/%s.xml' % self.id, method='PUT', xml=xml_string)
+            response = Highrise.request('/tasks/%s.xml' % self.id, method='PUT', xml=xml_string, hooks=hooks)
             new = Task.get(self.id)
 
         # update the values of self to align with what came back from Highrise
@@ -912,7 +949,7 @@ class Party(HighriseObject):
         email = Email(title=title, body=body, subject_id=self.id, subject_type='Party', **kwargs)
         email.save()
     
-    def save(self):
+    def save(self, hooks={}):
         """Save a party to Highrise."""
 
         # get the XML for the request
@@ -921,13 +958,13 @@ class Party(HighriseObject):
 
         # if this was an initial save, update the object with the returned data
         if self.id == None:
-            response = Highrise.request('/%s.xml' % self.plural, method='POST', xml=xml_string)
+            response = Highrise.request('/%s.xml' % self.plural, method='POST', xml=xml_string, hooks=hooks)
             new = Person.from_xml(response)
 
         # if this was a PUT request, we need to re-request the object
         # so we can get any new ID values for phone numbers, addresses, etc.
         else:
-            response = Highrise.request('/%s/%s.xml' % (self.plural, self.id), method='PUT', xml=xml_string)
+            response = Highrise.request('/%s/%s.xml' % (self.plural, self.id), method='PUT', xml=xml_string, hooks=hooks)
             new = self.get(self.id)
 
         # update the values of self to align with what came back from Highrise
