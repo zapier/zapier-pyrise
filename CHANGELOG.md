@@ -1,6 +1,10 @@
+0.5.1
+---
+* Fixes to Python 3 support (which didn't actually work in 0.5.0...sorry about that)
+
 0.5.0
 ---
-* Version bump to account for a few more community patches
+* Python 3 support
 
 0.4.5
 ---
