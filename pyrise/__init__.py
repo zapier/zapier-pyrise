@@ -61,7 +61,7 @@ class Highrise:
         # make the request
         kwargs = {'auth': (cls.token, 'X')}
         if xml:
-            kwargs['xml'] = xml
+            kwargs['data'] = xml
             kwargs['headers'] = {'Content-Type': 'application/xml'}
         if method == 'GET':
             r = requests.get(url, **kwargs)
@@ -841,7 +841,7 @@ class Case(HighriseObject):
         """Get a single case"""
 
         # retrieve the case from Highrise
-        xml = Highrise.request('/kases/%s.xml' % id)
+        xml = Highrise.request('/kases/{}.xml'.format(id))
 
         # return a case object
         for case_xml in xml.getiterator(tag='kase'):
@@ -862,7 +862,7 @@ class Case(HighriseObject):
         # if this was a PUT request, we need to re-request the object
         # so we can get any new ID values set at creation
         else:
-            response = Highrise.request('/kases/%s.xml' % self.id, method='PUT', xml=xml_string)
+            response = Highrise.request('/kases/{}.xml'.format(self.id), method='PUT', xml=xml_string)
             new = Case.get(self.id)
 
         # update the values of self to align with what came back from Highrise
@@ -871,7 +871,7 @@ class Case(HighriseObject):
     def delete(self):
         """Delete a task from Highrise."""
 
-        return Highrise.request('/kases/%s.xml' % self.id, method='DELETE')
+        return Highrise.request('/kases/{}.xml'.format(self.id), method='DELETE')
 
 class Party(HighriseObject):
     """An object representing a Highrise person or company."""
