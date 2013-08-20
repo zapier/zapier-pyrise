@@ -1,3 +1,7 @@
+0.5.0
+---
+* Version bump to account for a few more community patches
+
 0.4.5
 ---
 * Version bump to account for a few patches from the community
