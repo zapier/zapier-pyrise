@@ -1,3 +1,7 @@
+0.5.2
+---
+* Bug fixes - specifically in Python 2 support. Added requirements.txt
+
 0.5.1
 ---
 * Fixes to Python 3 support (which didn't actually work in 0.5.0...sorry about that)
