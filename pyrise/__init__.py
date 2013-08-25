@@ -193,7 +193,10 @@ class HighriseObject(object):
             elif data_type == 'datetime':
                 value = Highrise.from_utc(datetime.strptime(child.text, '%Y-%m-%dT%H:%M:%SZ'))
             else:
-                value = str(child.text)
+                try:
+                    value = unicode(child.text)
+                except:
+                    value = str(child.text)
 
             # add value to object dictionary
             self.__dict__[key] = value
@@ -242,8 +245,11 @@ class HighriseObject(object):
         # if the id should be included and it is not None, add it first
         if include_id and 'id' in self.__dict__ and self.id != None:
             id_element = ElementTree.SubElement(xml, tag='id', attrib={'type': 'integer'})
-            id_element.text = str(self.id)
-
+            try:
+                id_element.text = unicode(self.id)
+            except:
+                id_element.text = str(self.id)
+    
         # now iterate over the editable attributes
         for field, settings in self.fields.items():
             
@@ -272,7 +278,10 @@ class HighriseObject(object):
             # insert the remaining single-attribute elements
             e = ElementTree.Element(field_name, **extra_attrs_copy)
             if isinstance(value, int):
-                e.text = str(value)
+                try:
+                    e.text = unicode(value)
+                except:
+                    e.text = str(value)
             elif isinstance(value, list):
                 if len(value) == 0:
                     continue
