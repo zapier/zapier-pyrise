@@ -47,6 +47,18 @@ class Highrise:
         """Convert a date to UTC using the _tzoffset value"""
 
         return date - timedelta(hours=cls._tzoffset)
+
+    @classmethod
+    def parseurl(cls, val):
+        """This is for Python 3/2 support."""
+
+        # Functor to ensure that str is encoded to UTF8 before being used as a URL parameter
+        utf8 = lambda s: s.encode("utf8") if isinstance( s, str ) else s
+
+        try:
+            return urllib.parse.quote(utf8(val))
+        except AttributeError:
+            return urllib.quote(utf8(val))
     
     @classmethod
     def request(cls, path, method='GET', xml=None):
@@ -927,9 +939,6 @@ class Party(HighriseObject):
         if ('company_id' in kwargs or 'title' in kwargs):
             return Person._filter(**kwargs)
 
-        # Functor to ensure that str is encoded to UTF8 before being used as a URL parameter
-        utf8 = lambda s: s.encode("utf8") if isinstance( s, str ) else s
-
         paging = ''
         if 'n' in kwargs:
             n = kwargs.pop('n')
@@ -937,12 +946,12 @@ class Party(HighriseObject):
 
         # get the path for filter methods that only take a single argument
         if 'term' in kwargs:
-            path = '/{}/search.xml?term={}'.format(cls.plural, urllib.parse.quote(utf8(kwargs['term'])))
+            path = '/{}/search.xml?term={}'.format(cls.plural, Highrise.parseurl(kwargs['term']))
             if len(kwargs) > 1:
                 raise KeyError('"term" can not be used with any other keyward arguments')
 
         elif 'tag_id' in kwargs:
-            path = '/{}.xml?tag_id={}'.format(cls.plural, urllib.parse.quote(utf8(kwargs['tag_id'])))
+            path = '/{}.xml?tag_id={}'.format(cls.plural, Highrise.parseurl(kwargs['tag_id']))
             if len(kwargs) > 1:
                 raise KeyError('"tag_id" can not be used with any other keyward arguments')
 
@@ -957,7 +966,7 @@ class Party(HighriseObject):
             if kwargs.keys():
                 path = '/{}/search.xml?'.format(cls.plural)
                 for key in kwargs:
-                    path += 'criteria[{}]={}&'.format(key, urllib.parse.quote(utf8(kwargs[key])))
+                    path += 'criteria[{}]={}&'.format(key, Highrise.parseurl(kwargs[key]))
                 path = path[:-1]
             else:
                 # allow filtering by 'n' alone without using search.xml
