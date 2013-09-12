@@ -1,3 +1,7 @@
+0.5.3
+---
+* Bug fixes
+
 0.5.2
 ---
 * Bug fixes - specifically in Python 2 support. Added requirements.txt
