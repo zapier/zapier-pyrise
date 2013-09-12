@@ -375,7 +375,7 @@ class Tag(HighriseObject):
     def add_to(cls, subject, subject_id, name):
         """Add a tag to a specific person, company, case, or deal"""
         
-        xml = ElementTree.Element(tag='name')
+        xml = ElementTree.Element('name')
         xml.text = name
         xml_string = ElementTree.tostring(xml, encoding=None)
         
@@ -414,7 +414,7 @@ class Message(HighriseObject):
         cls.fields.update(extended_fields)
 
         # send back the object reference
-        return HighriseObject.__new__(cls, **kwargs)
+        return HighriseObject.__new__(cls)
 
     @classmethod
     def get(cls, id):
@@ -600,7 +600,7 @@ class Deal(HighriseObject):
 
         # prepare the XML string for submission
         xml = ElementTree.Element('status')
-        xml_name = ElementTree.Element(tag='name')
+        xml_name = ElementTree.Element('name')
         xml_name.text = status
         xml.insert(0, xml_name)
         xml_string = ElementTree.tostring(xml, encoding=None)
@@ -919,7 +919,7 @@ class Party(HighriseObject):
         cls.fields.update(extended_fields)
         
         # send back the object reference
-        return HighriseObject.__new__(cls, **kwargs)
+        return HighriseObject.__new__(cls)
     
     @classmethod
     def all(cls, offset=None):
@@ -1197,7 +1197,7 @@ class User(HighriseObject):
         cls.fields.update(extended_fields)
 
         # send back the object reference
-        return HighriseObject.__new__(cls, **kwargs)
+        return HighriseObject.__new__(cls)
 
     @classmethod
     def get(cls, id):
