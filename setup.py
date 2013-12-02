@@ -10,7 +10,7 @@ setup(name="pyrise",
       author="Jason Ford",
       author_email="jason@feedmagnet.com",
       url="http://github.com/feedmagnet/pyrise",
-      packages = find_packages(),
+      py_modules=['pyrise'],
       install_requires = ['httplib2', 'requests'],
       keywords= "python 37signals highrise api wrapper feedmagnet",
       )
