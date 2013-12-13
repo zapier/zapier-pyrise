@@ -152,7 +152,7 @@ class HighriseObject(object):
             cls = getattr(sys.modules[__name__], xml.get('type'))
         self = cls()
         
-        for child in xml.getchildren():
+        for child in xml:
             
             # convert the key to underscore notation for Python
             key = child.tag.replace('-', '_')
@@ -173,12 +173,12 @@ class HighriseObject(object):
                 continue
 
             # if this an element with children, it's an object relationship
-            if len(child.getchildren()) > 0:
+            if len(list(child)) > 0:
                 
                 # is this element an array of objects?
                 if cls.fields[key].type == list:
                     items = []
-                    for item in child.getchildren():
+                    for item in child:
                         if item.tag == 'party':
                             class_string = item.find('type').text
                         else:
