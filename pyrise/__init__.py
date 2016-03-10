@@ -5,7 +5,7 @@ import sys
 from datetime import datetime, timedelta
 from xml.etree import ElementTree
 
-__version__ = '0.4.4'
+__version__ = '0.4.4.zapier'
 
 
 class _Request(object):
