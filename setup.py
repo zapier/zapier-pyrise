@@ -11,7 +11,7 @@ CLASSIFIERS = [
 ]
 
 setup(name="pyrise",
-      version='0.5.0.zapier',
+      version='0.5.1.zapier',
       description="Python wrapper for 37Signals Highrise",
       long_description="A work in progress, but one that will be awesome when finished. Pyrise gives you class objects that work a lot like Django models, making the whole experience of integrating with Highrise just a little more awesome and Pythonic.",
       license="MIT License",
