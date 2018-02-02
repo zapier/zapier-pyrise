@@ -1,8 +1,10 @@
+from __future__ import absolute_import
 import httplib2
-import urllib
-import re
+import six
 import sys
+
 from datetime import datetime, timedelta
+from six.moves import urllib
 from xml.etree import ElementTree
 
 __version__ = '0.4.4.zapier'
@@ -110,19 +112,19 @@ class Highrise:
             if status == 400:
                 raise BadRequest
             elif status == 401:
-                raise AuthorizationRequired, content
+                raise AuthorizationRequired(content)
             elif status == 403:
-                raise Forbidden, content
+                raise Forbidden(content)
             elif status == 404:
-                raise NotFound, content
+                raise NotFound(content)
             elif status == 422:
-                raise GatewayFailure, content
+                raise GatewayFailure(content)
             elif status == 502:
-                raise GatewayConnectionError, content
+                raise GatewayConnectionError(content)
             elif status == 507:
-                raise InsufficientStorage, content
+                raise InsufficientStorage(content)
             else:
-                raise UnexpectedResponse, content
+                raise UnexpectedResponse(content)
 
         # if this was a PUT or DELETE request, return status (hopefully success)
         if method in ('PUT', 'DELETE'):
@@ -132,7 +134,7 @@ class Highrise:
         try:
             return ElementTree.fromstring(content)
         except:
-            raise UnexpectedResponse, "The server sent back something that wasn't valid XML."
+            raise UnexpectedResponse("The server sent back something that wasn't valid XML.")
 
     @classmethod
     def key_to_class(cls, key):
@@ -224,7 +226,7 @@ class HighriseObject(object):
             elif data_type == 'datetime':
                 value = Highrise.from_utc(datetime.strptime(child.text, '%Y-%m-%dT%H:%M:%SZ'))
             else:
-                value = unicode(child.text)
+                value = six.u(child.text)
 
             # add value to object dictionary
             self.__dict__[key] = value
@@ -250,10 +252,10 @@ class HighriseObject(object):
         """Create a new object manually."""
 
         self._server = Highrise._server
-        for field, settings in self.fields.iteritems():
+        for field, settings in self.fields.items():
             if field in kwargs:
                 if not settings.is_editable:
-                    raise KeyError, '%s is not an editable attribute' % field
+                    raise KeyError('%s is not an editable attribute' % field)
                 value = kwargs.pop(field)
             else:
                 value = settings.default
@@ -275,7 +277,7 @@ class HighriseObject(object):
             xml.insert(0, ElementTree.Element(tag='id', text=str(self.id)))
 
         # now iterate over the editable attributes
-        for field, settings in self.fields.iteritems():
+        for field, settings in self.fields.items():
 
             # get the value for this field, or pass if it is missing
             if field in self.__dict__:
@@ -435,12 +437,12 @@ class Message(HighriseObject):
         }
 
         # find the first kwarg that we understand and use it to generate the request path
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             if key in kwarg_to_path:
                 path = '/%s/%s/%s.xml' % (kwarg_to_path[key], value, cls.plural)
                 break
         else:
-            raise KeyError, 'filter method must have person, company, kase, or deal as an kwarg'
+            raise KeyError('filter method must have person, company, kase, or deal as an kwarg')
 
         # return the list of messages from Highrise
         return cls._list(path, cls.singular)
@@ -542,7 +544,7 @@ class Deal(HighriseObject):
 
         # sanity check: has this deal been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError, 'You have to save the deal before you can load its notes'
+            raise ElevatorError('You have to save the deal before you can load its notes')
 
         # get the notes
         return Note.filter(deal=self.id)
@@ -553,7 +555,7 @@ class Deal(HighriseObject):
 
         # sanity check: has this deal been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError, 'You have to save the deal before you can load its emails'
+            raise ElevatorError('You have to save the deal before you can load its emails')
 
         # get the emails
         return Email.filter(deal=self.id)
@@ -597,7 +599,7 @@ class Deal(HighriseObject):
 
         # sanity check: has this deal been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError, 'You have to save the deal before you can add a note'
+            raise ElevatorError('You have to save the deal before you can add a note')
 
         # add the note and save it to Highrise
         note = Note(body=body, subject_id=self.id, subject_type='Deal', **kwargs)
@@ -608,7 +610,7 @@ class Deal(HighriseObject):
 
         # sanity check: has this deal been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError, 'You have to save the deal before you can add an email'
+            raise ElevatorError('You have to save the deal before you can add an email')
 
         # add the email and save it to Highrise
         email = Email(title=title, body=body, subject_id=self.id, subject_type='Deal', **kwargs)
@@ -835,25 +837,25 @@ class Party(HighriseObject):
 
         # get the path for filter methods that only take a single argument
         if 'term' in kwargs:
-            path = '/%s/search.xml?term=%s' % (cls.plural, urllib.quote(kwargs['term']))
+            path = '/%s/search.xml?term=%s' % (cls.plural, urllib.parse.quote(kwargs['term']))
             if len(kwargs) > 1:
-                raise KeyError, '"term" can not be used with any other keyward arguments'
+                raise KeyError('"term" can not be used with any other keyward arguments')
 
         elif 'tag_id' in kwargs:
-            path = '/%s.xml?tag_id=%s' % (cls.plural, urllib.quote(kwargs['tag_id']))
+            path = '/%s.xml?tag_id=%s' % (cls.plural, urllib.parse.quote(kwargs['tag_id']))
             if len(kwargs) > 1:
-                raise KeyError, '"tag_id" can not be used with any other keyward arguments'
+                raise KeyError('"tag_id" can not be used with any other keyward arguments')
 
         elif 'since' in kwargs:
             path = '/%s.xml?since=%s' % (cls.plural, datetime.strftime(Highrise.from_utc(kwargs['since']), '%Y%m%d%H%M%S'))
             if len(kwargs) > 1:
-                raise KeyError, '"since" can not be used with any other keyward arguments'
+                raise KeyError('"since" can not be used with any other keyward arguments')
 
         # if we didn't get a single-argument kwarg, process using the search criteria method
         else:
             path = '/%s/search.xml?' % cls.plural
             for key in kwargs:
-                path += 'criteria[%s]=%s&' % (key, urllib.quote(kwargs[key]))
+                path += 'criteria[%s]=%s&' % (key, urllib.parse.quote(kwargs[key]))
             path = path[:-1]
 
         # return the list of people from Highrise
@@ -876,7 +878,7 @@ class Party(HighriseObject):
 
         # sanity check: has this person been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError, 'You have to save the person before you can load their tags'
+            raise ElevatorError('You have to save the person before you can load their tags')
 
         # get the tags
         return Tag.get_by(self.plural, self.id)
@@ -887,7 +889,7 @@ class Party(HighriseObject):
 
         # sanity check: has this person been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError, 'You have to save the person before you can load their notes'
+            raise ElevatorError('You have to save the person before you can load their notes')
 
         # get the notes
         kwargs = {}
@@ -900,7 +902,7 @@ class Party(HighriseObject):
 
         # sanity check: has this person been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError, 'You have to save the person before you can load their emails'
+            raise ElevatorError('You have to save the person before you can load their emails')
 
         # get the emails
         kwargs = {}
@@ -912,7 +914,7 @@ class Party(HighriseObject):
 
         # sanity check: has this party been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError, 'You have to save the %s before you can add a tag' % self.singular
+            raise ElevatorError('You have to save the %s before you can add a tag' % self.singular)
 
         # add the tag
         return Tag.add_to(self.plural, self.id, name)
@@ -922,7 +924,7 @@ class Party(HighriseObject):
 
         # sanity check: has this party been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError, 'You have to save the %s before you can remove a tag' % self.singular
+            raise ElevatorError('You have to save the %s before you can remove a tag' % self.singular)
 
         # remove the tag
         return Tag.remove_from(self.plural, self.id, tag_id)
@@ -932,7 +934,7 @@ class Party(HighriseObject):
 
         # sanity check: has this party been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError, 'You have to save the %s before you can add a note' % self.singular
+            raise ElevatorError('You have to save the %s before you can add a note' % self.singular)
 
         # add the note and save it to Highrise
         note = Note(body=body, subject_id=self.id, subject_type='Party', **kwargs)
@@ -943,7 +945,7 @@ class Party(HighriseObject):
 
         # sanity check: has this party been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError, 'You have to save the %s before you can add an email' % self.singular
+            raise ElevatorError('You have to save the %s before you can add an email' % self.singular)
 
         # add the email and save it to Highrise
         email = Email(title=title, body=body, subject_id=self.id, subject_type='Party', **kwargs)
@@ -1001,13 +1003,13 @@ class Person(Party):
         if 'company_id' in kwargs:
             path = '/companies/%s/people.xml' % kwargs['company_id']
             if len(kwargs) > 1:
-                raise KeyError, '"company_id" can not be used with any other keyward arguments'
+                raise KeyError('"company_id" can not be used with any other keyward arguments')
 
         # get all people will a specific title
         elif 'title' in kwargs:
             path = '/people.xml?title=%s' % kwargs['title']
             if len(kwargs) > 1:
-                raise KeyError, '"title" can not be used with any other keyward arguments'
+                raise KeyError('"title" can not be used with any other keyward arguments')
 
         # return the list of people from Highrise
         return cls._list(path, 'person')
