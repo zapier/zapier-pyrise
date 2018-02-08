@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import httplib2
+import re
 import six
 import sys
 
@@ -7,7 +8,7 @@ from datetime import datetime, timedelta
 from six.moves import urllib
 from xml.etree import ElementTree
 
-__version__ = '0.4.4.zapier'
+__version__ = '0.5.2.zapier'
 
 
 class _Request(object):
