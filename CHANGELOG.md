@@ -1,3 +1,7 @@
+0.5.2
+---
+* Fixed bug which was causing a NameError
+
 0.4.3
 ---
 * Added Task class with some basic methods.
