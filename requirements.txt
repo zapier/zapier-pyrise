@@ -1,0 +1,2 @@
+-e git+https://github.com/evax/httplib2.git#egg=httplib2
+requests==1.2.3
