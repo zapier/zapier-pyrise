@@ -1,40 +1,15 @@
-from __future__ import absolute_import
-import httplib2
+from __future__ import unicode_literals
+import urllib
+import requests
 import re
-import six
 import sys
-
 from datetime import datetime, timedelta
-from six.moves import urllib
 from xml.etree import ElementTree
 
-__version__ = '0.5.2.zapier'
-
-
-class _Request(object):
-    pass
-
-class _Response(object):
-    @classmethod
-    def create(cls, **kwargs):
-        response = _Response()
-        response.request = _Request()
-
-        response.request.method  = kwargs['method']
-        response.request.url     = kwargs['url']
-        response.request.headers = kwargs['request_headers']
-        response.request.data    = kwargs['request_content']
-        response.request.params  = kwargs['params']
-        response.status_code     = kwargs['status_code']
-        response.content         = kwargs['response_content']
-        response.headers         = kwargs['response_headers']
-
-        return response
 
 class Highrise:
     """Class designed to handle all interactions with the Highrise API."""
 
-    _http = httplib2.Http()
     _server = None
     _tzoffset = 0
 
@@ -42,8 +17,7 @@ class Highrise:
     def auth(cls, token):
         """Define the settings used to connect to Highrise"""
 
-        # add the credentials to the HTTP connection
-        cls._http.add_credentials(token, 'X')
+        cls.token = token
 
     @classmethod
     def set_server(cls, server):
@@ -52,7 +26,7 @@ class Highrise:
         if server[:4] == 'http':
             cls._server = server.strip('/')
         else:
-            cls._server = "https://%s.highrisehq.com" % server
+            cls._server = "https://{}.highrisehq.com".format(server)
 
     @classmethod
     def set_timezone_offset(cls, offset):
@@ -76,65 +50,70 @@ class Highrise:
         return date - timedelta(hours=cls._tzoffset)
 
     @classmethod
-    def request(cls, path, method='GET', xml=None, hooks={}):
+    def parseurl(cls, val):
+        """This is for Python 3/2 support."""
+
+        # Functor to ensure that str is encoded to UTF8 before being used as a URL parameter
+        utf8 = lambda s: s.encode("utf8") if isinstance( s, str ) else s
+
+        try:
+            return urllib.parse.quote(utf8(val))
+        except AttributeError:
+            return urllib.quote(utf8(val))
+
+    @classmethod
+    def request(cls, path, method='GET', xml=None, **request_kwargs):
         """Process an arbitrary request to Highrise.
 
         Ordinarily, you shouldn't have to call this method directly,
         but it's available to send arbitrary requests if needed."""
 
         # build the base request URL
-        url = '%s/%s' % (cls._server, path.strip('/'))
+        url = '{}/{}'.format(cls._server, path.strip('/'))
 
-        request_headers = {}
-        # create the curl command
-        if method in ('GET', 'DELETE'):
-            request, content = cls._http.request(url, method=method)
-        else:
-            request_headers = {'content-type': 'application/xml'}
-            request, content = cls._http.request(url, method=method, body=xml, headers=request_headers)
+        # make the request
+        kwargs = {'auth': (cls.token, 'X')}
+        kwargs.update(request_kwargs)
 
-        response = _Response.create(
-            method=method,
-            url=url,
-            request_headers=request_headers,
-            request_content=xml or '',
-            params = {},
-            status_code=request['status'],
-            response_content=content,
-            response_headers=request
-
-        )
-        if 'response' in hooks:
-            hooks['response'](response)
+        if xml:
+            kwargs['data'] = xml
+            kwargs['headers'] = {'Content-Type': 'application/xml'}
+        if method == 'GET':
+            r = requests.get(url, **kwargs)
+        elif method == 'POST':
+            r = requests.post(url, **kwargs)
+        elif method == 'PUT':
+            r = requests.put(url, **kwargs)
+        elif method == 'DELETE':
+            r = requests.delete(url, **kwargs)
 
         # raise appropriate exceptions if there is an error
-        status = int(request['status'])
-        if status >= 400:
-            if status == 400:
+        if r.status_code >= 400:
+            if r.status_code == 400:
                 raise BadRequest
-            elif status == 401:
-                raise AuthorizationRequired(content)
-            elif status == 403:
-                raise Forbidden(content)
-            elif status == 404:
-                raise NotFound(content)
-            elif status == 422:
-                raise GatewayFailure(content)
-            elif status == 502:
-                raise GatewayConnectionError(content)
-            elif status == 507:
-                raise InsufficientStorage(content)
+            elif r.status_code == 401:
+                raise AuthorizationRequired(r.text)
+            elif r.status_code == 403:
+                raise Forbidden(r.text)
+            elif r.status_code == 404:
+                raise NotFound(r.text)
+            elif r.status_code == 422:
+                raise GatewayFailure(r.text)
+            elif r.status_code == 502:
+                raise GatewayConnectionError(r.text)
+            elif r.status_code == 507:
+                raise InsufficientStorage(r.text)
             else:
-                raise UnexpectedResponse(content)
+                raise UnexpectedResponse(r.text)
 
         # if this was a PUT or DELETE request, return status (hopefully success)
         if method in ('PUT', 'DELETE'):
-            return status
+            return r.status_code
 
         # for GET and POST requests, return the XML response
         try:
-            return ElementTree.fromstring(content)
-        except:
+            return ElementTree.fromstring(r.text)
+        except Exception:
             raise UnexpectedResponse("The server sent back something that wasn't valid XML.")
 
     @classmethod
@@ -172,10 +151,11 @@ class HighriseObject(object):
         """Create a new object from XML data"""
 
         # instiantiate the object
+        if cls == Party:
+            cls = getattr(sys.modules[__name__], xml.get('type'))
         self = cls()
 
-        for child in xml.getchildren():
-
+        for child in xml:
             # convert the key to underscore notation for Python
             key = child.tag.replace('-', '_')
 
@@ -184,7 +164,7 @@ class HighriseObject(object):
                 continue
 
             # if there is no data, just set the default
-            if child.text == None:
+            if child.text is None:
                 self.__dict__[key] = self.fields[key].default
                 continue
 
@@ -195,12 +175,11 @@ class HighriseObject(object):
                 continue
 
             # if this an element with children, it's an object relationship
-            if len(child.getchildren()) > 0:
-
+            if len(list(child)) > 0:
                 # is this element an array of objects?
                 if cls.fields[key].type == list:
                     items = []
-                    for item in child.getchildren():
+                    for item in child:
                         if item.tag == 'party':
                             class_string = item.find('type').text
                         else:
@@ -227,7 +206,10 @@ class HighriseObject(object):
             elif data_type == 'datetime':
                 value = Highrise.from_utc(datetime.strptime(child.text, '%Y-%m-%dT%H:%M:%SZ'))
             else:
-                value = six.u(child.text)
+                try:
+                    value = unicode(child.text)
+                except:
+                    value = str(child.text)
 
             # add value to object dictionary
             self.__dict__[key] = value
@@ -243,7 +225,7 @@ class HighriseObject(object):
         xml = Highrise.request(path)
 
         # make a list of objects and return it
-        for item in xml.getiterator(tag=tag):
+        for item in xml.iter(tag):
             objects.append(cls.from_xml(item))
 
         return objects
@@ -256,7 +238,7 @@ class HighriseObject(object):
         for field, settings in self.fields.items():
             if field in kwargs:
                 if not settings.is_editable:
-                    raise KeyError('%s is not an editable attribute' % field)
+                    raise KeyError('{} is not an editable attribute'.format(field))
                 value = kwargs.pop(field)
             else:
                 value = settings.default
@@ -275,11 +257,14 @@ class HighriseObject(object):
 
         # if the id should be included and it is not None, add it first
         if include_id and 'id' in self.__dict__ and self.id != None:
-            xml.insert(0, ElementTree.Element(tag='id', text=str(self.id)))
+            id_element = ElementTree.SubElement(xml, tag='id', attrib={'type': 'integer'})
+            try:
+                id_element.text = unicode(self.id)
+            except:
+                id_element.text = str(self.id)
 
         # now iterate over the editable attributes
         for field, settings in self.fields.items():
-
             # get the value for this field, or pass if it is missing
             if field in self.__dict__:
                 value = self.__dict__[field]
@@ -305,7 +290,10 @@ class HighriseObject(object):
             # insert the remaining single-attribute elements
             e = ElementTree.Element(field_name, **extra_attrs_copy)
             if isinstance(value, int):
-                e.text = str(value)
+                try:
+                    e.text = unicode(value)
+                except:
+                    e.text = str(value)
             elif isinstance(value, list):
                 if len(value) == 0:
                     continue
@@ -349,6 +337,20 @@ class HighriseField(object):
         return self.type not in ('id', 'uneditable')
 
 
+class SubjectField(HighriseObject):
+    """An object representing a Highise custom field."""
+
+    fields = {
+        'id': HighriseField(type='id'),
+        'label': HighriseField(),
+    }
+
+    @classmethod
+    def all(cls):
+        """Get all custom fields"""
+
+        return cls._list('subject_fields.xml', 'subject-field')
+
 class Tag(HighriseObject):
     """An object representing a Highrise tag."""
 
@@ -367,24 +369,23 @@ class Tag(HighriseObject):
     def get_by(cls, subject, subject_id):
         """Get tags for a specific person, company, case, or deal"""
 
-        return cls._list('%s/%s/tags.xml' % (subject, subject_id), 'tag')
+        return cls._list('{}/{}/tags.xml'.format(subject, subject_id), 'tag')
 
     @classmethod
     def add_to(cls, subject, subject_id, name):
         """Add a tag to a specific person, company, case, or deal"""
-
-        xml = ElementTree.Element(tag='name')
+        xml = ElementTree.Element('name')
         xml.text = name
-        xml_string = ElementTree.tostring(xml)
+        xml_string = ElementTree.tostring(xml, encoding=None)
 
-        response = Highrise.request('%s/%s/tags.xml' % (subject, subject_id), method='POST', xml=xml_string)
+        response = Highrise.request('{}/{}/tags.xml'.format(subject, subject_id), method='POST', xml=xml_string)
         return cls.from_xml(response)
 
     @classmethod
     def remove_from(cls, subject, subject_id, tag_id):
         """Add a tag to a specific person, company, case, or deal"""
 
-        return Highrise.request('%s/%s/tags/%s.xml' % (subject, subject_id, tag_id), method='DELETE')
+        return Highrise.request('{}/{}/tags/{}.xml'.format(subject, subject_id, tag_id), method='DELETE')
 
 
 class Message(HighriseObject):
@@ -412,17 +413,17 @@ class Message(HighriseObject):
         cls.fields.update(extended_fields)
 
         # send back the object reference
-        return HighriseObject.__new__(cls, **kwargs)
+        return HighriseObject.__new__(cls)
 
     @classmethod
     def get(cls, id):
         """Get a single message"""
 
         # retrieve the data from Highrise
-        xml = Highrise.request('/%s/%s.xml' % (cls.plural, id))
+        xml = Highrise.request('/{}/{}.xml'.format(cls.plural, id))
 
         # return a note object
-        for obj_xml in xml.getiterator(tag=cls.singular):
+        for obj_xml in xml.iter(tag=cls.singular):
             return cls.from_xml(obj_xml)
 
     @classmethod
@@ -440,7 +441,7 @@ class Message(HighriseObject):
         # find the first kwarg that we understand and use it to generate the request path
         for key, value in kwargs.items():
             if key in kwarg_to_path:
-                path = '/%s/%s/%s.xml' % (kwarg_to_path[key], value, cls.plural)
+                path = '/{}/{}/{}.xml'.format(kwarg_to_path[key], value, cls.plural)
                 break
         else:
             raise KeyError('filter method must have person, company, kase, or deal as an kwarg')
@@ -448,22 +449,22 @@ class Message(HighriseObject):
         # return the list of messages from Highrise
         return cls._list(path, cls.singular)
 
-    def save(self, hooks={}):
+    def save(self, **kwargs):
         """Save a message to Highrise."""
 
         # get the XML for the request
         xml = self.save_xml()
-        xml_string = ElementTree.tostring(xml)
+        xml_string = ElementTree.tostring(xml, encoding=None)
 
         # if this was an initial save, update the object with the returned data
         if self.id == None:
-            response = Highrise.request('/%s.xml' % self.plural, method='POST', xml=xml_string, hooks=hooks)
+            response = Highrise.request('/{}.xml'.format(self.plural), method='POST', xml=xml_string, **kwargs)
             new = self.from_xml(response)
 
         # if this was a PUT request, we need to re-request the object
         # so we can get any new ID values set at ceation
         else:
-            response = Highrise.request('/%s/%s.xml' % (self.plural, self.id), method='PUT', xml=xml_string, hooks=hooks)
+            response = Highrise.request('/{}/{}.xml'.format(self.plural, self.id), method='PUT', xml=xml_string, **kwargs)
             new = cls.get(self.id)
 
         # update the values of self to align with what came back from Highrise
@@ -472,7 +473,7 @@ class Message(HighriseObject):
     def delete(self):
         """Delete a message from Highrise."""
 
-        return Highrise.request('/%s/%s.xml' % (self.plural, self.id), method='DELETE')
+        return Highrise.request('/{}/{}.xml'.format(self.plural, self.id), method='DELETE')
 
 
 class Note(Message):
@@ -533,10 +534,10 @@ class Deal(HighriseObject):
         """Get a single deal"""
 
         # retrieve the deal from Highrise
-        xml = Highrise.request('/deals/%s.xml' % id)
+        xml = Highrise.request('/deals/{}.xml'.format(id))
 
         # return a deal object
-        for deal_xml in xml.getiterator(tag='deal'):
+        for deal_xml in xml.iter(tag='deal'):
             return Deal.from_xml(deal_xml)
 
     @property
@@ -551,6 +552,17 @@ class Deal(HighriseObject):
         return Note.filter(deal=self.id)
 
     @property
+    def tasks(self):
+        """Get the tasks associated with this deal"""
+
+        # sanity check: has this deal been saved to Highrise yet?
+        if self.id == None:
+            raise ElevatorError('You have to save the deal before you can load its tasks')
+
+        # get the notes
+        return Task.filter(deal=self.id)
+
+    @property
     def emails(self):
         """Get the emails associated with this deal"""
 
@@ -561,22 +573,22 @@ class Deal(HighriseObject):
         # get the emails
         return Email.filter(deal=self.id)
 
-    def save(self, hooks={}):
+    def save(self, **kwargs):
         """Save a deal to Highrise."""
 
         # get the XML for the request
         xml = self.save_xml()
-        xml_string = ElementTree.tostring(xml)
+        xml_string = ElementTree.tostring(xml, encoding=None)
 
         # if this was an initial save, update the object with the returned data
         if self.id == None:
-            response = Highrise.request('/deals.xml', method='POST', xml=xml_string, hooks=hooks)
+            response = Highrise.request('/deals.xml', method='POST', xml=xml_string, **kwargs)
             new = Deal.from_xml(response)
 
         # if this was a PUT request, we need to re-request the object
         # so we can get any new ID values set at ceation
         else:
-            response = Highrise.request('/deals/%s.xml' % self.id, method='PUT', xml=xml_string, hooks=hooks)
+            response = Highrise.request('/deals/{}.xml'.format(self.id), method='PUT', xml=xml_string, **kwargs)
             new = Deal.get(self.id)
 
         # update the values of self to align with what came back from Highrise
@@ -587,13 +599,13 @@ class Deal(HighriseObject):
 
         # prepare the XML string for submission
         xml = ElementTree.Element('status')
-        xml_name = ElementTree.Element(tag='name')
+        xml_name = ElementTree.Element('name')
         xml_name.text = status
         xml.insert(0, xml_name)
-        xml_string = ElementTree.tostring(xml)
+        xml_string = ElementTree.tostring(xml, encoding=None)
 
         # submit the PUT request
-        response = Highrise.request('/deals/%s/status.xml' % self.id, method='PUT', xml=xml_string)
+        response = Highrise.request('/deals/{}/status.xml'.format(self.id), method='PUT', xml=xml_string)
 
     def add_note(self, body, **kwargs):
         """Add a note to a deal"""
@@ -620,12 +632,15 @@ class Deal(HighriseObject):
     def delete(self):
         """Delete a deal from Highrise."""
 
-        return Highrise.request('/deals/%s.xml' % self.id, method='DELETE')
+        return Highrise.request('/deals/{}.xml'.format(self.id), method='DELETE')
 
 
 
 class Task(HighriseObject):
     """An object representing a Highrise task."""
+
+    plural = 'tasks'
+    singular = 'task'
 
     fields = {
         'id': HighriseField(type='id'),
@@ -656,28 +671,28 @@ class Task(HighriseObject):
         """Get a single task"""
 
         # retrieve the task from Highrise
-        xml = Highrise.request('/tasks/%s.xml' % id)
+        xml = Highrise.request('/tasks/{}.xml'.format(id))
 
         # return a task object
-        for task_xml in xml.getiterator(tag='task'):
+        for task_xml in xml.iter(tag='task'):
             return Task.from_xml(task_xml)
 
-    def save(self, hooks={}):
+    def save(self, **kwargs):
         """Save a task to Highrise."""
 
         # get the XML for the request
         xml = self.save_xml()
-        xml_string = ElementTree.tostring(xml)
+        xml_string = ElementTree.tostring(xml, encoding=None)
 
         # if this was an initial save, update the object with the returned data
         if self.id == None:
-            response = Highrise.request('/tasks.xml', method='POST', xml=xml_string, hooks=hooks)
+            response = Highrise.request('/tasks.xml', method='POST', xml=xml_string, **kwargs)
             new = Task.from_xml(response)
 
         # if this was a PUT request, we need to re-request the object
         # so we can get any new ID values set at ceation
         else:
-            response = Highrise.request('/tasks/%s.xml' % self.id, method='PUT', xml=xml_string, hooks=hooks)
+            response = Highrise.request('/tasks/{}.xml'.format(self.id), method='PUT', xml=xml_string, **kwargs)
             new = Task.get(self.id)
 
         # update the values of self to align with what came back from Highrise
@@ -686,7 +701,30 @@ class Task(HighriseObject):
     def delete(self):
         """Delete a task from Highrise."""
 
-        return Highrise.request('/tasks/%s.xml' % self.id, method='DELETE')
+        return Highrise.request('/tasks/{}.xml'.format(self.id), method='DELETE')
+
+    @classmethod
+    def filter(cls, **kwargs):
+        """Get a list of tasks based by subject"""
+
+        # map kwarg to URL slug for request
+        kwarg_to_path = {
+            'person': 'people',
+            'company': 'companies',
+            'kase': 'kases',
+            'deal': 'deals',
+        }
+
+        # find the first kwarg that we understand and use it to generate the request path
+        for key, value in kwargs.items():
+            if key in kwarg_to_path:
+                path = '/{}/{}/{}.xml'.format(kwarg_to_path[key], value, cls.plural)
+                break
+        else:
+            raise KeyError('filter method must have person, company, kase, or deal as an kwarg')
+
+        # return the list of messages from Highrise
+        return cls._list(path, cls.singular)
 
 
 class ContactData(HighriseObject):
@@ -789,6 +827,7 @@ class SubjectData(HighriseObject):
     fields = {
         'id': HighriseField(type='id'),
         'subject_field_id': HighriseField(type=int, force_key='subject_field_id', extra_attrs={'type': 'integer'}),
+        'subject_field_label': HighriseField(type=str),
         'value': HighriseField(type=str)
     }
 
@@ -796,10 +835,70 @@ class SubjectData(HighriseObject):
         kwargs['base_element'] = 'subject_data'
         return super(SubjectData, self).save_xml(*args, **kwargs)
 
+class Case(HighriseObject):
+    """An object representing a Highrise Case."""
 
+    fields = {
+        'id': HighriseField(type='id'),
+        'author_id': HighriseField(type=int),
+        'closed_at': HighriseField(type=datetime),
+        'created_at': HighriseField(type=datetime),
+        'updated_at': HighriseField(type=datetime),
+        'name': HighriseField(type=str),
+        'visible-to': HighriseField(type=str),
+        'group_id': HighriseField(type=int),
+        'owner_id': HighriseField(type=int),
+        'parties': HighriseField(type=list)
+    }
+
+    @classmethod
+    def all(cls):
+        """Get all cases"""
+
+        return cls._list('kases/open.xml', 'kase')
+
+    @classmethod
+    def get(cls, id):
+        """Get a single case"""
+
+        # retrieve the case from Highrise
+        xml = Highrise.request('/kases/{}.xml'.format(id))
+
+        # return a case object
+        for case_xml in xml.getiterator(tag='kase'):
+            return Case.from_xml(case_xml)
+
+    def save(self):
+        """Save a case to Highrise."""
+
+        # get the XML for the request
+        xml = self.save_xml()
+        xml_string = ElementTree.tostring(xml, encoding=None)
+
+        # if this was an initial save, update the object with the returned data
+        if self.id == None:
+            response = Highrise.request('/kases.xml', method='POST', xml=xml_string)
+            new = Case.from_xml(response)
+
+        # if this was a PUT request, we need to re-request the object
+        # so we can get any new ID values set at creation
+        else:
+            response = Highrise.request('/kases/{}.xml'.format(self.id), method='PUT', xml=xml_string)
+            new = Case.get(self.id)
+
+        # update the values of self to align with what came back from Highrise
+        self.__dict__ = new.__dict__
+
+    def delete(self):
+        """Delete a task from Highrise."""
+
+        return Highrise.request('/kases/{}.xml'.format(self.id), method='DELETE')
 
 class Party(HighriseObject):
     """An object representing a Highrise person or company."""
+
+    singular = 'party'
+    plural = 'parties'
 
     def __new__(cls, extended_fields={}, **kwargs):
         """Set object attributes for subclasses of Party (companies and people)"""
@@ -812,6 +911,7 @@ class Party(HighriseObject):
             'owner_id': HighriseField(type=int),
             'group_id': HighriseField(type=int),
             'contact_data': HighriseField(type=ContactData),
+            'avatar_url': HighriseField(type=str),
             'author_id': HighriseField(),
             'created_at': HighriseField(),
             'updated_at': HighriseField()
@@ -819,13 +919,16 @@ class Party(HighriseObject):
         cls.fields.update(extended_fields)
 
         # send back the object reference
-        return HighriseObject.__new__(cls, **kwargs)
+        return HighriseObject.__new__(cls)
 
     @classmethod
-    def all(cls):
+    def all(cls, offset=None):
         """Get all parties"""
 
-        return cls._list('%s.xml' % cls.plural, 'person')
+        if offset:
+            return cls._list('{}.xml?n={}'.format(cls.plural, offset), cls.singular)
+        else:
+            return cls._list('{}.xml'.format(cls.plural), cls.singular)
 
     @classmethod
     def filter(cls, **kwargs):
@@ -836,41 +939,51 @@ class Party(HighriseObject):
         if ('company_id' in kwargs or 'title' in kwargs):
             return Person._filter(**kwargs)
 
+        paging = ''
+        if 'n' in kwargs:
+            n = kwargs.pop('n')
+            paging = '&n=%d' % n
+
         # get the path for filter methods that only take a single argument
         if 'term' in kwargs:
-            path = '/%s/search.xml?term=%s' % (cls.plural, urllib.parse.quote(kwargs['term']))
+            path = '/{}/search.xml?term={}'.format(cls.plural, Highrise.parseurl(kwargs['term']))
             if len(kwargs) > 1:
                 raise KeyError('"term" can not be used with any other keyward arguments')
 
         elif 'tag_id' in kwargs:
-            path = '/%s.xml?tag_id=%s' % (cls.plural, urllib.parse.quote(kwargs['tag_id']))
+            path = '/{}.xml?tag_id={}'.format(cls.plural, Highrise.parseurl(kwargs['tag_id']))
             if len(kwargs) > 1:
                 raise KeyError('"tag_id" can not be used with any other keyward arguments')
 
         elif 'since' in kwargs:
-            path = '/%s.xml?since=%s' % (cls.plural, datetime.strftime(Highrise.from_utc(kwargs['since']), '%Y%m%d%H%M%S'))
+            paging = '' # since does not page results
+            path = '/{}.xml?since={}'.format(cls.plural, datetime.strftime(Highrise.from_utc(kwargs['since']), '%Y%m%d%H%M%S'))
             if len(kwargs) > 1:
                 raise KeyError('"since" can not be used with any other keyward arguments')
 
         # if we didn't get a single-argument kwarg, process using the search criteria method
         else:
-            path = '/%s/search.xml?' % cls.plural
-            for key in kwargs:
-                path += 'criteria[%s]=%s&' % (key, urllib.parse.quote(kwargs[key]))
-            path = path[:-1]
+            if kwargs.keys():
+                path = '/{}/search.xml?'.format(cls.plural)
+                for key in kwargs:
+                    path += 'criteria[{}]={}&'.format(key, Highrise.parseurl(kwargs[key]))
+                path = path[:-1]
+            else:
+                # allow filtering by 'n' alone without using search.xml
+                path = '/{}.xml?'.format(cls.plural)
 
         # return the list of people from Highrise
-        return cls._list(path, cls.singular)
+        return cls._list(path+paging, cls.singular)
 
     @classmethod
     def get(cls, id):
         """Get a single party"""
 
         # retrieve the person from Highrise
-        xml = Highrise.request('/%s/%s.xml' % (cls.plural, id))
+        xml = Highrise.request('/{}/{}.xml'.format(cls.plural, id))
 
         # return a person object
-        for obj_xml in xml.getiterator(tag=cls.singular):
+        for obj_xml in xml.iter(tag=cls.singular):
             return cls.from_xml(obj_xml)
 
     @property
@@ -898,6 +1011,19 @@ class Party(HighriseObject):
         return Note.filter(**kwargs)
 
     @property
+    def tasks(self):
+        """Get the tasks associated with this party"""
+
+        # sanity check: has this person been saved to Highrise yet?
+        if self.id == None:
+            raise ElevatorError('You have to save the person before you can load their tasks')
+
+        # get the notes
+        kwargs = {}
+        kwargs[self.singular] = self.id
+        return Task.filter(**kwargs)
+
+    @property
     def emails(self):
         """Get the emails associated with this party"""
 
@@ -915,7 +1041,7 @@ class Party(HighriseObject):
 
         # sanity check: has this party been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError('You have to save the %s before you can add a tag' % self.singular)
+            raise ElevatorError('You have to save the {} before you can add a tag'.format(self.singular))
 
         # add the tag
         return Tag.add_to(self.plural, self.id, name)
@@ -925,7 +1051,7 @@ class Party(HighriseObject):
 
         # sanity check: has this party been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError('You have to save the %s before you can remove a tag' % self.singular)
+            raise ElevatorError('You have to save the {} before you can remove a tag'.format(self.singular))
 
         # remove the tag
         return Tag.remove_from(self.plural, self.id, tag_id)
@@ -935,7 +1061,7 @@ class Party(HighriseObject):
 
         # sanity check: has this party been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError('You have to save the %s before you can add a note' % self.singular)
+            raise ElevatorError('You have to save the {} before you can add a note'.format(self.singular))
 
         # add the note and save it to Highrise
         note = Note(body=body, subject_id=self.id, subject_type='Party', **kwargs)
@@ -946,28 +1072,28 @@ class Party(HighriseObject):
 
         # sanity check: has this party been saved to Highrise yet?
         if self.id == None:
-            raise ElevatorError('You have to save the %s before you can add an email' % self.singular)
+            raise ElevatorError('You have to save the {} before you can add an email'.format(self.singular))
 
         # add the email and save it to Highrise
         email = Email(title=title, body=body, subject_id=self.id, subject_type='Party', **kwargs)
         email.save()
 
-    def save(self, hooks={}):
+    def save(self, **kwargs):
         """Save a party to Highrise."""
 
         # get the XML for the request
         xml = self.save_xml()
-        xml_string = ElementTree.tostring(xml)
+        xml_string = ElementTree.tostring(xml, encoding=None)
 
         # if this was an initial save, update the object with the returned data
         if self.id == None:
-            response = Highrise.request('/%s.xml' % self.plural, method='POST', xml=xml_string, hooks=hooks)
+            response = Highrise.request('/{}.xml'.format(self.plural), method='POST', xml=xml_string, **kwargs)
             new = Person.from_xml(response)
 
         # if this was a PUT request, we need to re-request the object
         # so we can get any new ID values for phone numbers, addresses, etc.
         else:
-            response = Highrise.request('/%s/%s.xml' % (self.plural, self.id), method='PUT', xml=xml_string, hooks=hooks)
+            response = Highrise.request('/{}/{}.xml'.format(self.plural, self.id), method='PUT', xml=xml_string, **kwargs)
             new = self.get(self.id)
 
         # update the values of self to align with what came back from Highrise
@@ -976,7 +1102,7 @@ class Party(HighriseObject):
     def delete(self):
         """Delete a party from Highrise."""
 
-        return Highrise.request('/%s/%s.xml' % (self.plural, self.id), method='DELETE')
+        return Highrise.request('/{}/{}.xml'.format(self.plural, self.id), method='DELETE')
 
 
 class Person(Party):
@@ -1002,13 +1128,13 @@ class Person(Party):
 
         # get all people in a company
         if 'company_id' in kwargs:
-            path = '/companies/%s/people.xml' % kwargs['company_id']
+            path = '/companies/{}/people.xml'.format(kwargs['company_id'])
             if len(kwargs) > 1:
                 raise KeyError('"company_id" can not be used with any other keyward arguments')
 
         # get all people will a specific title
         elif 'title' in kwargs:
-            path = '/people.xml?title=%s' % kwargs['title']
+            path = '/people.xml?title={}'.format(kwargs['title'])
             if len(kwargs) > 1:
                 raise KeyError('"title" can not be used with any other keyward arguments')
 
@@ -1025,8 +1151,64 @@ class Company(Party):
     def __new__(cls, **kwargs):
         extended_fields = {
             'name': HighriseField(type=str),
+            'subject_datas': HighriseField(type=list, force_key='subject_datas', extra_attrs={'type': 'array'}),
         }
         return Party.__new__(cls, extended_fields, **kwargs)
+
+
+class User(HighriseObject):
+    """
+    A Highrise account user (NB this is *not* a Person).
+
+    A user is someone who has a Highrise account, and is not the same
+    thing as a Person (who is a Highrise contact). Users are the people who
+    use the system, rather than those stored within it.
+
+    Having a User class is useful as it allows you to access real names for
+    people who have edited / added items to Highrise. For example, if you
+    want to know who wrote a Note, then the Note API will return the author_id
+    which can be used to look up the User.
+
+    e.g.
+    >>> person = pyrise.Person.get(123)
+    >>> note = person.notes[0]
+    >>> author = pyrise.User.get(note.author_id)
+    >>> print author.name + ' wrote the note.'
+    Bob wrote the note.
+
+    API docs available at https://github.com/37signals/highrise-api/blob/master/sections/data_reference.md#user
+
+    NB this is currently READ-ONLY, and has only a single `get(id)` method.
+    """
+
+    singular = 'user'
+    plural = 'users'
+
+    def __new__(cls, extended_fields={}, **kwargs):
+        # set the base fields dictionary and extend it with any additional fields
+        cls.fields = {
+            'id': HighriseField(type='id'),
+            'name': HighriseField(type=str),
+            'email_address': HighriseField(type=str),
+            'created_at': HighriseField(),
+            'updated_at': HighriseField(),
+            'admin': HighriseField(type=bool)
+        }
+        cls.fields.update(extended_fields)
+
+        # send back the object reference
+        return HighriseObject.__new__(cls)
+
+    @classmethod
+    def get(cls, id):
+        """Get a single user by id."""
+
+        # retrieve the person from Highrise
+        xml = Highrise.request('/{}/{}.xml'.format(cls.plural, id))
+
+        # return a person object
+        for obj_xml in xml.iter(tag=cls.singular):
+            return cls.from_xml(obj_xml)
 
 
 class ElevatorError(Exception):

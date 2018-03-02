@@ -1,6 +1,26 @@
+0.5.3
+---
+* Bug fixes
+
 0.5.2
 ---
-* Fixed bug which was causing a NameError
+* Bug fixes - specifically in Python 2 support. Added requirements.txt
+
+0.5.1
+---
+* Fixes to Python 3 support (which didn't actually work in 0.5.0...sorry about that)
+
+0.5.0
+---
+* Python 3 support
+
+0.4.5
+---
+* Version bump to account for a few patches from the community
+
+0.4.4
+---
+* Lots of misc bug fixes and improvements.
 
 0.4.3
 ---

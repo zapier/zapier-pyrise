@@ -184,7 +184,7 @@ Add a deal
     
 Get a single deal based on id, edit, and save
 
-    >>> deal = Deal(12345)
+    >>> deal = Deal.get(12345)
     >>> print deal.name
     Super Huge Amazing Deal.
     >>> deal.name = 'The Biggest Deal Ever.'
@@ -192,7 +192,7 @@ Get a single deal based on id, edit, and save
     
 Get the notes and emails for a deal
 
-    >>> deal = Deal(12345)
+    >>> deal = Deal.get(12345)
     >>> notes = deal.notes
     >>> emails = deal.emails
 
@@ -204,22 +204,22 @@ Get a list of all deals in Highrise
     
 Add a note to a deal
 
-    >>> deal = Deal(12345)
+    >>> deal = Deal.get(12345)
     >>> deal.add_note('Getting close to closing this deal...')
 
 Add an email to a deal
 
-    >>> deal = Deal(12345)
+    >>> deal = Deal.get(12345)
     >>> deal.add_email('Email subect', 'Body text of the email.')
 
 Change the status of a deal
 
-    >>> deal = Deal(12345)
+    >>> deal = Deal.get(12345)
     >>> deal.set_status('won') # could also be 'lost' or 'pending'
 
 Delete a deal
 
-    >>> deal = Deal(12345)
+    >>> deal = Deal.get(12345)
     >>> deal.delete()
 
 
