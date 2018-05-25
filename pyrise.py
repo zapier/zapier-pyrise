@@ -1,10 +1,13 @@
 from __future__ import unicode_literals
-import urllib
-import requests
 import re
 import sys
 from datetime import datetime, timedelta
 from xml.etree import ElementTree
+
+import requests
+
+from six import text_type
+from six.moves.urllib.parse import quote
 
 
 class Highrise:
@@ -55,14 +58,10 @@ class Highrise:
 
         # Functor to ensure that str is encoded to UTF8 before being used as a URL parameter
         utf8 = lambda s: s.encode("utf8") if isinstance( s, str ) else s
-
-        try:
-            return urllib.parse.quote(utf8(val))
-        except AttributeError:
-            return urllib.quote(utf8(val))
+        return quote(utf8(val))
 
     @classmethod
-    def request(cls, path, method='GET', xml=None, **request_kwargs):
+    def request(cls, path, method='GET', xml=None, hooks=None, **request_kwargs):
         """Process an arbitrary request to Highrise.
 
         Ordinarily, you shouldn't have to call this method directly,
@@ -105,6 +104,9 @@ class Highrise:
                 raise InsufficientStorage(r.text)
             else:
                 raise UnexpectedResponse(r.text)
+
+        if hooks and 'response' in hooks:
+            hooks['response'](r)
 
         # if this was a PUT or DELETE request, return status (hopefully success)
         if method in ('PUT', 'DELETE'):
@@ -206,10 +208,7 @@ class HighriseObject(object):
             elif data_type == 'datetime':
                 value = Highrise.from_utc(datetime.strptime(child.text, '%Y-%m-%dT%H:%M:%SZ'))
             else:
-                try:
-                    value = unicode(child.text)
-                except:
-                    value = str(child.text)
+                value = text_type(child.text)
 
             # add value to object dictionary
             self.__dict__[key] = value
@@ -230,7 +229,6 @@ class HighriseObject(object):
 
         return objects
 
-
     def __init__(self, parent=None, **kwargs):
         """Create a new object manually."""
 
@@ -243,7 +241,6 @@ class HighriseObject(object):
             else:
                 value = settings.default
             self.__dict__[field] = value
-
 
     def save_xml(self, include_id=False, **kwargs):
         """Return the object XML for sending back to Highrise"""
@@ -258,10 +255,7 @@ class HighriseObject(object):
         # if the id should be included and it is not None, add it first
         if include_id and 'id' in self.__dict__ and self.id != None:
             id_element = ElementTree.SubElement(xml, tag='id', attrib={'type': 'integer'})
-            try:
-                id_element.text = unicode(self.id)
-            except:
-                id_element.text = str(self.id)
+            id_element.text = text_type(self.id)
 
         # now iterate over the editable attributes
         for field, settings in self.fields.items():
@@ -290,10 +284,7 @@ class HighriseObject(object):
             # insert the remaining single-attribute elements
             e = ElementTree.Element(field_name, **extra_attrs_copy)
             if isinstance(value, int):
-                try:
-                    e.text = unicode(value)
-                except:
-                    e.text = str(value)
+                e.text = text_type(value)
             elif isinstance(value, list):
                 if len(value) == 0:
                     continue
