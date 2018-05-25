@@ -12,7 +12,7 @@ setup(name="pyrise",
       author_email="jason@feedmagnet.com",
       url="http://github.com/feedmagnet/pyrise",
       py_modules=['pyrise'],
-      install_requires = ['httplib2', 'requests'],
+      install_requires = ['httplib2', 'requests', 'six'],
       keywords= "python 37signals highrise api wrapper feedmagnet",
       classifiers=[
          "Development Status :: 5 - Production/Stable",
