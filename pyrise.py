@@ -10,6 +10,12 @@ from six import text_type
 from six.moves.urllib.parse import quote
 
 
+def _utf8_helper(value):
+    if isinstance(value, text_type):
+        value = value.encode('utf-8')
+    return quote(value)
+
+
 class Highrise:
     """Class designed to handle all interactions with the Highrise API."""
 
@@ -57,8 +63,7 @@ class Highrise:
         """This is for Python 3/2 support."""
 
         # Functor to ensure that str is encoded to UTF8 before being used as a URL parameter
-        utf8 = lambda s: s.encode("utf8") if isinstance( s, str ) else s
-        return quote(utf8(val))
+        return quote(_utf8_helper(val))
 
     @classmethod
     def request(cls, path, method='GET', xml=None, hooks=None, **request_kwargs):
@@ -937,12 +942,12 @@ class Party(HighriseObject):
 
         # get the path for filter methods that only take a single argument
         if 'term' in kwargs:
-            path = '/{}/search.xml?term={}'.format(cls.plural, Highrise.parseurl(kwargs['term']))
+            path = u'/{}/search.xml?term={}'.format(cls.plural, Highrise.parseurl(kwargs['term']))
             if len(kwargs) > 1:
                 raise KeyError('"term" can not be used with any other keyward arguments')
 
         elif 'tag_id' in kwargs:
-            path = '/{}.xml?tag_id={}'.format(cls.plural, Highrise.parseurl(kwargs['tag_id']))
+            path = u'/{}.xml?tag_id={}'.format(cls.plural, Highrise.parseurl(kwargs['tag_id']))
             if len(kwargs) > 1:
                 raise KeyError('"tag_id" can not be used with any other keyward arguments')
 
@@ -957,7 +962,7 @@ class Party(HighriseObject):
             if kwargs.keys():
                 path = '/{}/search.xml?'.format(cls.plural)
                 for key in kwargs:
-                    path += 'criteria[{}]={}&'.format(key, Highrise.parseurl(kwargs[key]))
+                    path += u'criteria[{}]={}&'.format(key, Highrise.parseurl(kwargs[key]))
                 path = path[:-1]
             else:
                 # allow filtering by 'n' alone without using search.xml
