@@ -57,7 +57,7 @@ or
 
 Alternately, you can just clone the GitHub repository anywhere in your PythonPath like this
 
-    $ git clone http://github.com/feedmagnet/pyrise.git
+    $ git clone https://github.com/zapier/zapier-pyrise.git
 
 Note that if you are installing manually, you'll need to get httplib2 if you don't
 already have it.
